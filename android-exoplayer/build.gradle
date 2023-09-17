@@ -34,7 +34,7 @@ repositories {
 dependencies {
     implementation "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
 
-    implementation('com.github.Lilsax.ExoPlayer:exoplayer:Shahid-2.18.6-11') {
+    implementation('com.github.Lilsax.ExoPlayer:exoplayer:Shahid-2.18.6-12') {
         exclude group: 'com.android.support'
     }
 
