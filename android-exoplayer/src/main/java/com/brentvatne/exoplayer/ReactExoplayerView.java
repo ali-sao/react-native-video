@@ -102,19 +102,6 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
-import com.npaw.balancer.exoplayer.ExoPlayerCdnBalancer;
-import com.npaw.balancer.models.BalancerStats;
-import com.npaw.balancer.stats.BalancerStatsListener;
-import com.npaw.balancer.utils.BalancerOptions;
-import com.npaw.youbora.lib6.Timer;
-import com.npaw.youbora.lib6.YouboraLog;
-import com.npaw.youbora.lib6.YouboraUtil;
-import com.npaw.youbora.lib6.exoplayer2.CustomEventLogger;
-import com.npaw.youbora.lib6.exoplayer2.Exoplayer2Adapter;
-import com.npaw.youbora.lib6.exoplayer2.PlayerAnalyticsListener;
-import com.npaw.youbora.lib6.plugin.Options;
-import com.npaw.youbora.lib6.plugin.Plugin;
-import com.brentvatne.exoplayer.CustomAdapter;
 
 import org.json.JSONObject;
 
@@ -255,18 +242,9 @@ class ReactExoplayerView extends FrameLayout implements
     private final AudioManager audioManager;
     private final AudioBecomingNoisyReceiver audioBecomingNoisyReceiver;
 
-    // Youbora
-    private static Plugin youboraPlugin = null;
-    private boolean currentlyInRetry = false;
-    Plugin.WillSendRequestListener errorOverridedListener;
-
-    // Analytics
-    private Analytics analyticsParams;
-    private boolean youboraJoinTimeSent = false;
+    
     // Google DAI
-
     public int errorRetries = 0;
-
     public static int qualityCounter = 1;
     public static boolean isTrailer = true;
     public static String drmUserToken = "";
@@ -812,10 +790,6 @@ class ReactExoplayerView extends FrameLayout implements
 
         PlaybackParameters params = new PlaybackParameters(rate, 1f);
         player.setPlaybackParameters(params);
-
-        if (youboraPlugin != null && youboraPlugin.getAdapter() == null) {
-            youboraPlugin.setAdapter(new CustomAdapter(player, this));
-        }
     }
 
     private DrmSessionManager initializePlayerDrm(ReactExoplayerView self) {
@@ -1036,13 +1010,6 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void releasePlayer() {
-        if (youboraPlugin != null) {
-            youboraPlugin.removeAdapter();
-            if(errorOverridedListener != null) {
-                youboraPlugin.removeOnWillSendErrorListener(errorOverridedListener);
-            }
-        }
-
         if (player != null) {
             updateResumePosition();
             player.release();
@@ -1627,10 +1594,6 @@ class ReactExoplayerView extends FrameLayout implements
             bufferingStartTime = new Date().getTime();
             eventEmitter.onBufferStart();
         } else if( playbackState == Player.STATE_READY) {
-            if (!youboraJoinTimeSent && youboraPlugin != null && youboraPlugin.getAdapter() != null) {
-                youboraPlugin.getAdapter().fireJoin();
-                youboraJoinTimeSent = true;
-            }
             if(bufferingStartTime != null) {
                 bufferingTime += (new Date().getTime() - bufferingStartTime) / 1000;
                 if(bufferingTime >= 30) {
@@ -2386,24 +2349,6 @@ class ReactExoplayerView extends FrameLayout implements
     public void onDrmKeysRemoved(int windowIndex, MediaSource.MediaPeriodId mediaPeriodId) {
         Log.d("DRM Info", "onDrmKeysRemoved");
     }
-
-    public void fireYouboraEvent(ReadableMap event) {
-        String eventName = event.hasKey("event") ? event.getString("event") : null;
-        ReadableMap dimensions = event.hasKey("dimensions") ? event.getMap("dimensions") : null;
-        if (eventName == null || dimensions == null) return;
-    
-        Map<String, String> dimMap = new HashMap<>();
-        ReadableMapKeySetIterator iterator = dimensions.keySetIterator();
-        while (iterator.hasNextKey()) {
-            String key = iterator.nextKey();
-            String value = dimensions.getString(key);
-            dimMap.put(key, value);
-        }
-    
-        if (youboraPlugin.getAdapter() != null) {
-            youboraPlugin.getAdapter().fireEvent(eventName, dimMap, new HashMap<>(), new HashMap<>());
-        }
-    }
     /**
      * Handling controls prop
      *
@@ -2423,48 +2368,6 @@ class ReactExoplayerView extends FrameLayout implements
 //        }
 //    }
 
-
-    public void setYouboraParams(Options youboraOptions) {
-        if (youboraOptions == null) {
-            if (youboraPlugin != null) {
-                youboraPlugin.removeAdapter();
-                if(errorOverridedListener != null) {
-                    youboraPlugin.removeOnWillSendErrorListener(errorOverridedListener);
-                }
-                youboraPlugin = null;
-            }
-            return;
-        }
-        if (youboraPlugin == null) {
-            youboraPlugin = new Plugin(youboraOptions, this.getContext());
-        } else {
-            youboraPlugin.setOptions(youboraOptions);
-            youboraPlugin.setApplicationContext(this.getContext());
-        }
-
-        errorOverridedListener = new Plugin.WillSendRequestListener() {
-            @Override
-            public void willSendRequest(String serviceName, Plugin plugin, Map<String, String> params) {
-                if (!currentlyInRetry){
-                    youboraPlugin.getAdapter().unregisterListeners();
-                }
-            }
-
-            @Override
-            public void willSendRequest(String serviceName, Plugin plugin, ArrayList<JSONObject> params) {
-                // do nothing for now
-            }
-        };
-
-        didBehindLiveWindowHappen = false;
-        isTrailer = false;
-        drmUserToken = "";
-        qualityCounter = 1;
-        manifestType = -1;
-        youboraPlugin.removeOnWillSendErrorListener(errorOverridedListener);
-        youboraPlugin.addOnWillSendErrorListener(errorOverridedListener);
-        youboraPlugin.setActivity(themedReactContext.getCurrentActivity());
-    }
 
     public void setExoPlayerCallback(ExoPlayerCallback callback) {
         playerCallback = callback;
@@ -2490,14 +2393,6 @@ class ReactExoplayerView extends FrameLayout implements
 
     public void setLanguage(String lang) {
         this.language = lang;
-    }
-
-    public void setAnalyticsParams(ReadableMap analyticsParams) {
-        if (analyticsParams == null){
-            this.analyticsParams = null;
-        } else {
-            this.analyticsParams = new Analytics(analyticsParams);
-        }
     }
 
 }

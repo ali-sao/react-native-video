@@ -26,11 +26,6 @@ android {
     }
 }
 
-repositories {
-    maven { url  "https://npaw.jfrog.io/artifactory/youbora/" }
-    maven { url  "https://npaw.jfrog.io/artifactory/release/" }
-}
-
 dependencies {
     implementation "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
 
